@@ -15,7 +15,11 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
+        view.backgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(red: 0.063, green: 0.086, blue: 0.106, alpha: 1)
+                : UIColor(red: 0.969, green: 0.973, blue: 0.980, alpha: 1)
+        }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
@@ -27,6 +31,7 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.scrollView.keyboardDismissMode = .interactive
         webView.isOpaque = false
         webView.backgroundColor = view.backgroundColor
+        webView.scrollView.backgroundColor = view.backgroundColor
         webView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(webView)
         NSLayoutConstraint.activate([
