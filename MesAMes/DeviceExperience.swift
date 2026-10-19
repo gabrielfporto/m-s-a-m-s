@@ -64,8 +64,10 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     func attach(to webView: WKWebView, in view: UIView) {
         self.webView = webView; hostView = view
         cover = UIView(); cover.backgroundColor = .systemBackground; cover.translatesAutoresizingMaskIntoConstraints = false
+        cover.accessibilityViewIsModal = true
         let stack = UIStackView(); stack.axis = .vertical; stack.alignment = .center; stack.spacing = 18; stack.translatesAutoresizingMaskIntoConstraints = false
-        let image = UIImageView(image: UIImage(systemName: "lock.shield")); image.tintColor = UIColor(red: 0.14, green: 0.28, blue: 0.35, alpha: 1)
+        let image = UIImageView(image: UIImage(systemName: "lock.shield"))
+        image.tintColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.63, green: 0.77, blue: 0.84, alpha: 1) : UIColor(red: 0.14, green: 0.28, blue: 0.35, alpha: 1) }
         image.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 40, weight: .regular)
         let title = UILabel(); title.text = "Mês a mês"; title.font = .preferredFont(forTextStyle: .title1); title.adjustsFontForContentSizeCategory = true
         coverMessage = UILabel(); coverMessage.text = "Seu espaço financeiro está protegido."; coverMessage.font = .preferredFont(forTextStyle: .body); coverMessage.textColor = .secondaryLabel; coverMessage.numberOfLines = 0; coverMessage.textAlignment = .center
@@ -90,11 +92,13 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     func conceal() {
         guard cover != nil else { return }
         unlockButton.isHidden = !settings.lockEnabled || unlocked
+        webView?.accessibilityElementsHidden = true
         cover.isHidden = false; hostView?.bringSubviewToFront(cover)
     }
     private func reveal() {
         guard UIApplication.shared.applicationState == .active, unlocked else { return }
         cover?.isHidden = true
+        webView?.accessibilityElementsHidden = false
         webView?.evaluateJavaScript("window.dispatchEvent(new Event('mesames-active'))", completionHandler: nil)
     }
     private func authenticate(reason: String, completion: @escaping (Bool) -> Void) {
@@ -203,6 +207,12 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
                     let jobs = DevicePolicy.reminders(body["jobs"]); let previous = scheduleTask
                     let task = Task { await previous?.value; await self.updateReminders(jobs, owner: owner, revision: revision) }
                     scheduleTask = task; await task.value
+                case "testReminder":
+                    let permission = await notifications.notificationSettings().authorizationStatus
+                    guard settings.ownerId != nil, settings.remindersEnabled, [.authorized, .provisional, .ephemeral].contains(permission) else { replyHandler(nil, "Ative os lembretes e permita as notificações nos Ajustes."); return }
+                    let content = UNMutableNotificationContent(); content.title = "Mês a mês"; content.body = "Os lembretes deste iPhone estão prontos."; content.sound = .default
+                    content.userInfo = ["page": "Movimentações", "ownerHash": ownerHash]
+                    try await notifications.add(UNNotificationRequest(identifier: "ma.\(ownerHash).test", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)))
                 case "ackNavigation": if body["page"] as? String == queuedPage { queuedPage = nil }
                 case "openSettings":
                     if let url = URL(string: UIApplication.openSettingsURLString) { _ = await UIApplication.shared.open(url) }
