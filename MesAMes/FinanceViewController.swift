@@ -2,7 +2,8 @@ import UIKit
 import WebKit
 import SafariServices
 
-/// Native WebKit shell. Financial records and service credentials stay on the private server.
+/// Native WebKit shell. Credentials stay on the server; offline financial copies
+/// are managed by the same-origin web app, encrypted and cleared on logout.
 /// Login and institution authorization must be validated on a physical iPhone before distribution.
 final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     private let home = URL(string: "https://mes-a-mes-financas.rosycream3.chatgpt.site/")!
@@ -12,6 +13,7 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
     private var popupViews: [WKWebView] = []
     private var downloadURLs: [ObjectIdentifier: URL] = [:]
     private var isRecovering = false
+    private var attemptedOfflineFallback = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,6 +24,9 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
+        // Service workers in WKWebView require an app-bound first-party view.
+        // Keep this list aligned with WKAppBoundDomains in Info.plist.
+        configuration.limitsNavigationsToAppBoundDomains = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
@@ -64,7 +69,18 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if navigationAction.shouldPerformDownload { decisionHandler(.download); return }
         switch url.scheme?.lowercased() {
-        case "https", "about", "blob", "data": decisionHandler(.allow)
+        case "https":
+            if webView === self.webView,
+               navigationAction.targetFrame?.isMainFrame == true,
+               url.host?.lowercased() != home.host?.lowercased() {
+                decisionHandler(.cancel)
+                if presentedViewController == nil {
+                    present(SFSafariViewController(url: url), animated: true)
+                }
+                return
+            }
+            decisionHandler(.allow)
+        case "about", "blob", "data": decisionHandler(.allow)
         case "http": decisionHandler(.cancel)
         default:
             decisionHandler(.cancel)
@@ -78,6 +94,10 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         guard navigationAction.targetFrame == nil else { return nil }
         // Preserve the original page and its Pluggy callback while bank/login popups are open.
+        // Bank authorization may leave the first-party domain. Preserve the
+        // configuration supplied by WebKit (and window.opener), but allow this
+        // separate popup to browse external domains without native JS access.
+        configuration.limitsNavigationsToAppBoundDomains = false
         let popup = WKWebView(frame: .zero, configuration: configuration)
         popup.navigationDelegate = self
         popup.uiDelegate = self
@@ -122,12 +142,31 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         isRecovering = false
+        if webView === self.webView { attemptedOfflineFallback = false }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        showError(error)
+        recoverNavigation(webView, error: error)
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        recoverNavigation(webView, error: error)
+    }
+    private func recoverNavigation(_ failedView: WKWebView, error: Error) {
+        let failure = error as NSError
+        if failure.domain == NSURLErrorDomain && failure.code == NSURLErrorCancelled { return }
+        let networkErrors = [NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
+                             NSURLErrorTimedOut, NSURLErrorCannotFindHost,
+                             NSURLErrorCannotConnectToHost, NSURLErrorDNSLookupFailed]
+        if failedView === webView, !attemptedOfflineFallback,
+           failure.domain == NSURLErrorDomain, networkErrors.contains(failure.code) {
+            attemptedOfflineFallback = true
+            // Public shell only. Never fall back to cached authenticated HTML
+            // or copy credentials/financial records into the native layer.
+            let offline = home.appendingPathComponent("offline")
+            let request = URLRequest(url: offline, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 8)
+            failedView.load(request)
+            return
+        }
         showError(error)
     }
     private func showError(_ error: Error) {
@@ -135,9 +174,11 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         guard code != NSURLErrorCancelled, presentedViewController == nil else { return }
         progress.isHidden = true
         let alert = UIAlertController(title: "Não foi possível carregar",
-                                      message: "Verifique sua conexão. Seus dados continuam no servidor.", preferredStyle: .alert)
+                                      message: attemptedOfflineFallback
+                                        ? "A consulta offline ainda não está pronta neste aparelho. Abra o app com internet para prepará-la. Seus dados da conta foram preservados."
+                                        : "Verifique sua conexão. Seus dados continuam no servidor.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Tentar novamente", style: .default) { [weak self] _ in
-            guard let self = self else { return }; self.webView.load(URLRequest(url: self.home))
+            guard let self = self else { return }; self.attemptedOfflineFallback = false; self.webView.load(URLRequest(url: self.home))
         })
         alert.addAction(UIAlertAction(title: "Abrir no Safari", style: .default) { [weak self] _ in
             guard let self = self else { return }; self.present(SFSafariViewController(url: self.home), animated: true)
