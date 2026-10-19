@@ -1,4 +1,5 @@
 import UIKit
+import UserNotifications
 
 final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -14,5 +15,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
         window.makeKeyAndVisible()
         self.window = window
+        if let response = connectionOptions.notificationResponse {
+            (window.rootViewController as? FinanceViewController)?.openNotification(response)
+        }
     }
+    // Synchronous callbacks cover the web content before iOS takes its snapshot.
+    func sceneWillResignActive(_ scene: UIScene) { (window?.rootViewController as? FinanceViewController)?.concealPrivateContent() }
+    func sceneDidEnterBackground(_ scene: UIScene) { (window?.rootViewController as? FinanceViewController)?.enteredBackground() }
+    func sceneDidBecomeActive(_ scene: UIScene) { (window?.rootViewController as? FinanceViewController)?.becameActive() }
 }

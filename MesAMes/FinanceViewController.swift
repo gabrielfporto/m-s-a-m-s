@@ -1,6 +1,7 @@
 import UIKit
 import WebKit
 import SafariServices
+import UserNotifications
 
 /// Native WebKit shell. Credentials stay on the server; offline financial copies
 /// are managed by the same-origin web app, encrypted and cleared on logout.
@@ -14,6 +15,7 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
     private var downloadURLs: [ObjectIdentifier: URL] = [:]
     private var isRecovering = false
     private var attemptedOfflineFallback = false
+    private let deviceExperience = DeviceExperience()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -28,6 +30,7 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         // Keep this list aligned with WKAppBoundDomains in Info.plist.
         configuration.limitsNavigationsToAppBoundDomains = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        configuration.userContentController.addScriptMessageHandler(deviceExperience, contentWorld: .page, name: "mesamesDevice")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -61,8 +64,15 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
                 self.progress.isHidden = webView.estimatedProgress >= 1
             }
         }
+        deviceExperience.attach(to: webView, in: view)
         webView.load(URLRequest(url: home))
     }
+
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); deviceExperience.activate() }
+    func concealPrivateContent() { deviceExperience.conceal() }
+    func enteredBackground() { deviceExperience.enteredBackground() }
+    func becameActive() { deviceExperience.activate() }
+    func openNotification(_ response: UNNotificationResponse) { deviceExperience.handleNotification(response) }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -98,6 +108,8 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         // configuration supplied by WebKit (and window.opener), but allow this
         // separate popup to browse external domains without native JS access.
         configuration.limitsNavigationsToAppBoundDomains = false
+        // Popups preserve WebKit's opener but never inherit the native bridge.
+        configuration.userContentController = WKUserContentController()
         let popup = WKWebView(frame: .zero, configuration: configuration)
         popup.navigationDelegate = self
         popup.uiDelegate = self

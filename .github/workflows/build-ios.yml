@@ -23,6 +23,10 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+      - name: Testar origem da ponte e política de lembretes
+        run: |
+          swiftc MesAMes/DevicePolicy.swift tests/native-policy/main.swift -o /tmp/mesames-native-tests
+          /tmp/mesames-native-tests
       - name: Compilar executável e empacotar IPA sem assinatura
         run: bash build-unsigned-ipa.sh
       - name: Disponibilizar IPA
