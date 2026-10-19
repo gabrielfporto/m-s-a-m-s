@@ -205,7 +205,7 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
                     scheduleTask = task; await task.value
                 case "ackNavigation": if body["page"] as? String == queuedPage { queuedPage = nil }
                 case "openSettings":
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    if let url = URL(string: UIApplication.openSettingsURLString) { _ = await UIApplication.shared.open(url) }
                 default: replyHandler(nil, "Ação não reconhecida."); return
                 }
                 replyHandler(await status(), nil)
