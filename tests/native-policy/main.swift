@@ -17,3 +17,33 @@ for change in [["date":"2026-10-17"],["date":"2026-11-31"],["date":"2027-01-01"]
 }
 check(DevicePolicy.reminders(["invalid"], now: now).isEmpty, "malformed bridge payload")
 print("Native origin, notification privacy, deduplication, date and destination checks passed.")
+
+// Exercise both callback orders observed around the system authentication UI.
+for callbackBeforeActivation in [true, false] {
+    var lifecycle = DeviceUnlockLifecycle()
+    check(!lifecycle.consumeAutomaticAttempt(), "do not prompt while inactive")
+    lifecycle.becameActive()
+    check(lifecycle.consumeAutomaticAttempt(), "one automatic unlock on launch")
+    let attemptEpoch = lifecycle.epoch
+    lifecycle.resignedActive()
+    var unlocked = false
+    if callbackBeforeActivation {
+        unlocked = lifecycle.acceptsAuthentication(from: attemptEpoch)
+        check(!lifecycle.canReveal(unlocked: unlocked), "keep content covered until scene activation")
+    }
+    lifecycle.becameActive()
+    if !callbackBeforeActivation { unlocked = lifecycle.acceptsAuthentication(from: attemptEpoch) }
+    check(lifecycle.canReveal(unlocked: unlocked), "recognized Face ID must release the cover in either callback order")
+    check(!lifecycle.consumeAutomaticAttempt(), "activation after Face ID must not request another authentication")
+    lifecycle.enteredBackground()
+    check(!lifecycle.acceptsAuthentication(from: attemptEpoch), "a late success cannot unlock a new background session")
+    check(!lifecycle.canReveal(unlocked: true), "background content stays protected")
+    lifecycle.becameActive()
+    check(lifecycle.consumeAutomaticAttempt(), "returning from real background starts a new unlock cycle")
+}
+var cancelled = DeviceUnlockLifecycle()
+cancelled.becameActive(); check(cancelled.consumeAutomaticAttempt(), "initial prompt")
+cancelled.resignedActive(); cancelled.becameActive()
+check(!cancelled.canReveal(unlocked: false), "failed authentication keeps the cover")
+check(!cancelled.consumeAutomaticAttempt(), "cancel must leave an explicit retry button, not an automatic loop")
+print("Face ID scene ordering, successful unlock, cancellation and background regression checks passed.")

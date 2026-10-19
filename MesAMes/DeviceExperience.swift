@@ -21,7 +21,7 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     private var unlocked = true
     private var evaluating = false
     private var authentication: LAContext?
-    private var authenticationEpoch = 0
+    private var lifecycle = DeviceUnlockLifecycle()
     private var cover: UIView!
     private var unlockButton: UIButton!
     private var coverMessage: UILabel!
@@ -82,21 +82,28 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         cover.isHidden = unlocked
     }
     func enteredBackground() {
-        authenticationEpoch += 1; unlocked = !settings.lockEnabled
+        lifecycle.enteredBackground(); unlocked = !settings.lockEnabled
         authentication?.invalidate(); conceal()
     }
+    func willResignActive() { lifecycle.resignedActive(); conceal() }
     func activate() {
-        guard UIApplication.shared.applicationState == .active else { return }
-        if settings.lockEnabled && !unlocked { conceal(); unlock() } else { reveal() }
+        lifecycle.becameActive()
+        if settings.lockEnabled && !unlocked {
+            conceal()
+            // A cancelled/failed system prompt returning to the foreground is
+            // not a new unlock request. Retrying stays under the user's control.
+            if !evaluating && lifecycle.consumeAutomaticAttempt() { unlock() }
+        } else { reveal() }
     }
     func conceal() {
         guard cover != nil else { return }
         unlockButton.isHidden = !settings.lockEnabled || unlocked
+        unlockButton.isEnabled = !evaluating
         webView?.accessibilityElementsHidden = true
         cover.isHidden = false; hostView?.bringSubviewToFront(cover)
     }
     private func reveal() {
-        guard UIApplication.shared.applicationState == .active, unlocked else { return }
+        guard lifecycle.canReveal(unlocked: unlocked) else { return }
         cover?.isHidden = true
         webView?.accessibilityElementsHidden = false
         webView?.evaluateJavaScript("window.dispatchEvent(new Event('mesames-active'))", completionHandler: nil)
@@ -105,16 +112,16 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         guard !evaluating else { completion(false); return }
         let context = LAContext(); context.localizedCancelTitle = "Cancelar"
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { completion(false); return }
-        evaluating = true; authentication = context; let epoch = authenticationEpoch
+        evaluating = true; authentication = context; let epoch = lifecycle.epoch
         context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { [weak self] success, _ in
             Task { @MainActor in
                 guard let self = self else { completion(false); return }
-                self.evaluating = false; self.authentication = nil; completion(success && epoch == self.authenticationEpoch)
+                self.evaluating = false; self.authentication = nil; completion(success && self.lifecycle.acceptsAuthentication(from: epoch))
             }
         }
     }
     private func unlock() {
-        guard settings.lockEnabled, !unlocked, !evaluating else { return }
+        guard settings.lockEnabled, !unlocked, !evaluating, lifecycle.active else { return }
         authenticate(reason: "Desbloqueie seu espaço financeiro.") { [weak self] success in
             guard let self = self else { return }
             self.unlocked = success
@@ -135,7 +142,7 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         case .denied: permission = "denied"
         default: permission = "notDetermined"
         }
-        return ["version": "1.4.0", "lockEnabled": settings.lockEnabled, "unlocked": unlocked,
+        return ["version": "1.4.1", "lockEnabled": settings.lockEnabled, "unlocked": unlocked,
                 "biometry": context.biometryType == .faceID ? "faceID" : context.biometryType == .touchID ? "touchID" : "passcode",
                 "permission": permission, "remindersEnabled": settings.remindersEnabled,
                 "pendingPage": unlocked ? (queuedPage ?? "") : ""]

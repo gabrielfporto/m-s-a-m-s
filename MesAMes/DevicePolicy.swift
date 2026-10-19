@@ -1,5 +1,24 @@
 import Foundation
 
+// Scene callbacks are authoritative for this window. The app-wide state can
+// still be inactive inside sceneDidBecomeActive, especially around Face ID.
+struct DeviceUnlockLifecycle {
+    private(set) var active = false
+    private(set) var epoch = 0
+    private var automaticAttemptAvailable = true
+    mutating func becameActive() { active = true }
+    mutating func resignedActive() { active = false }
+    mutating func enteredBackground() {
+        active = false; epoch += 1; automaticAttemptAvailable = true
+    }
+    mutating func consumeAutomaticAttempt() -> Bool {
+        guard active && automaticAttemptAvailable else { return false }
+        automaticAttemptAvailable = false; return true
+    }
+    func canReveal(unlocked: Bool) -> Bool { active && unlocked }
+    func acceptsAuthentication(from attemptEpoch: Int) -> Bool { epoch == attemptEpoch }
+}
+
 enum DevicePolicy {
     static let host = "mes-a-mes-financas.rosycream3.chatgpt.site"
     static func acceptsOrigin(scheme: String, host: String, port: Int, mainFrame: Bool) -> Bool {

@@ -68,8 +68,11 @@ final class FinanceViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.load(URLRequest(url: home))
     }
 
-    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); deviceExperience.activate() }
-    func concealPrivateContent() { deviceExperience.conceal() }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if view.window?.windowScene?.activationState == .foregroundActive { deviceExperience.activate() }
+    }
+    func concealPrivateContent() { deviceExperience.willResignActive() }
     func enteredBackground() { deviceExperience.enteredBackground() }
     func becameActive() { deviceExperience.activate() }
     func openNotification(_ response: UNNotificationResponse) { deviceExperience.handleNotification(response) }
