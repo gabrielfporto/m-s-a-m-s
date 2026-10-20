@@ -25,6 +25,8 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     private var cover: UIView!
     private var unlockButton: UIButton!
     private var coverMessage: UILabel!
+    private var privacyVeil: UIVisualEffectView!
+    private var scheduleError: String?
     private var scheduleTask: Task<Void, Never>?
     private var scheduleRevision = 0
     private var queuedPage: String?
@@ -63,21 +65,31 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     }
     func attach(to webView: WKWebView, in view: UIView) {
         self.webView = webView; hostView = view
-        cover = UIView(); cover.backgroundColor = .systemBackground; cover.translatesAutoresizingMaskIntoConstraints = false
+        let ink = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.84, green: 0.9, blue: 0.93, alpha: 1) : UIColor(red: 0.12, green: 0.23, blue: 0.28, alpha: 1) }
+        cover = UIView(); cover.backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.06, green: 0.09, blue: 0.11, alpha: 1) : UIColor(red: 0.96, green: 0.97, blue: 0.98, alpha: 1) }; cover.translatesAutoresizingMaskIntoConstraints = false
         cover.accessibilityViewIsModal = true
-        let stack = UIStackView(); stack.axis = .vertical; stack.alignment = .center; stack.spacing = 18; stack.translatesAutoresizingMaskIntoConstraints = false
-        let image = UIImageView(image: UIImage(systemName: "lock.shield"))
-        image.tintColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.63, green: 0.77, blue: 0.84, alpha: 1) : UIColor(red: 0.14, green: 0.28, blue: 0.35, alpha: 1) }
-        image.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 40, weight: .regular)
-        let title = UILabel(); title.text = "Mês a mês"; title.font = .preferredFont(forTextStyle: .title1); title.adjustsFontForContentSizeCategory = true
-        coverMessage = UILabel(); coverMessage.text = "Seu espaço financeiro está protegido."; coverMessage.font = .preferredFont(forTextStyle: .body); coverMessage.textColor = .secondaryLabel; coverMessage.numberOfLines = 0; coverMessage.textAlignment = .center
-        unlockButton = UIButton(type: .system); var configuration = UIButton.Configuration.filled()
-        configuration.title = "Desbloquear"; configuration.cornerStyle = .large
-        configuration.baseBackgroundColor = UIColor(red: 0.14, green: 0.28, blue: 0.35, alpha: 1)
+        let stack = UIStackView(); stack.axis = .vertical; stack.alignment = .center; stack.spacing = 16; stack.translatesAutoresizingMaskIntoConstraints = false
+        let mark = UIView(); mark.backgroundColor = UIColor(red: 0.14, green: 0.28, blue: 0.35, alpha: 1); mark.layer.cornerRadius = 24; mark.layer.cornerCurve = .continuous
+        let image = UIImageView(image: UIImage(systemName: "chart.bar.fill")); image.translatesAutoresizingMaskIntoConstraints = false
+        image.tintColor = UIColor(red: 0.9, green: 0.76, blue: 0.35, alpha: 1)
+        image.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 36, weight: .medium)
+        mark.addSubview(image); NSLayoutConstraint.activate([mark.widthAnchor.constraint(equalToConstant: 88),mark.heightAnchor.constraint(equalToConstant: 88),image.centerXAnchor.constraint(equalTo: mark.centerXAnchor),image.centerYAnchor.constraint(equalTo: mark.centerYAnchor)])
+        let title = UILabel(); title.text = "mês a mês"; title.textColor = ink; title.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: .systemFont(ofSize: 26, weight: .semibold)); title.adjustsFontForContentSizeCategory = true
+        coverMessage = UILabel(); coverMessage.text = "Seu espaço, só seu."; coverMessage.font = .preferredFont(forTextStyle: .subheadline); coverMessage.adjustsFontForContentSizeCategory = true; coverMessage.textColor = .secondaryLabel; coverMessage.numberOfLines = 0; coverMessage.textAlignment = .center
+        unlockButton = UIButton(type: .system); var configuration = UIButton.Configuration.plain()
+        let context = LAContext(); _ = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+        configuration.title = "Desbloquear"
+        configuration.image = UIImage(systemName: context.biometryType == .faceID ? "faceid" : "lock.open"); configuration.imagePadding = 10; configuration.cornerStyle = .capsule
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
+        configuration.baseForegroundColor = ink
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in var outgoing = incoming; outgoing.font = .preferredFont(forTextStyle: .subheadline); return outgoing }
         unlockButton.configuration = configuration; unlockButton.addAction(UIAction { [weak self] _ in self?.unlock() }, for: .touchUpInside)
-        stack.addArrangedSubview(image); stack.addArrangedSubview(title)
+        stack.addArrangedSubview(mark); stack.setCustomSpacing(24, after: mark); stack.addArrangedSubview(title)
         stack.addArrangedSubview(coverMessage); stack.addArrangedSubview(unlockButton)
         cover.addSubview(stack); view.addSubview(cover)
+        privacyVeil = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial)); privacyVeil.translatesAutoresizingMaskIntoConstraints = false; privacyVeil.isHidden = true; privacyVeil.isUserInteractionEnabled = true
+        view.addSubview(privacyVeil)
+        NSLayoutConstraint.activate([privacyVeil.topAnchor.constraint(equalTo: view.topAnchor),privacyVeil.bottomAnchor.constraint(equalTo: view.bottomAnchor),privacyVeil.leadingAnchor.constraint(equalTo: view.leadingAnchor),privacyVeil.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
         NSLayoutConstraint.activate([cover.topAnchor.constraint(equalTo: view.topAnchor),cover.bottomAnchor.constraint(equalTo: view.bottomAnchor),cover.leadingAnchor.constraint(equalTo: view.leadingAnchor),cover.trailingAnchor.constraint(equalTo: view.trailingAnchor),stack.centerXAnchor.constraint(equalTo: cover.centerXAnchor),stack.centerYAnchor.constraint(equalTo: cover.centerYAnchor),stack.leadingAnchor.constraint(greaterThanOrEqualTo: cover.leadingAnchor, constant: 30),stack.trailingAnchor.constraint(lessThanOrEqualTo: cover.trailingAnchor, constant: -30)])
         cover.isHidden = unlocked
     }
@@ -85,7 +97,15 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         lifecycle.enteredBackground(); unlocked = !settings.lockEnabled
         authentication?.invalidate(); conceal()
     }
-    func willResignActive() { lifecycle.resignedActive(); conceal() }
+    func willResignActive() {
+        lifecycle.resignedActive()
+        // Notification/Control Center and system prompts only make the scene
+        // inactive. Preserve its unlocked session; show a neutral privacy veil.
+        if unlocked {
+            privacyVeil?.isHidden = false; webView?.accessibilityElementsHidden = true
+            if let veil = privacyVeil { hostView?.bringSubviewToFront(veil) }
+        } else { conceal() }
+    }
     func activate() {
         lifecycle.becameActive()
         if settings.lockEnabled && !unlocked {
@@ -97,7 +117,9 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     }
     func conceal() {
         guard cover != nil else { return }
-        unlockButton.isHidden = !settings.lockEnabled || unlocked
+        privacyVeil?.isHidden = true
+        unlockButton.isHidden = !lifecycle.active || !settings.lockEnabled || unlocked
+        coverMessage.isHidden = !lifecycle.active
         unlockButton.isEnabled = !evaluating
         webView?.accessibilityElementsHidden = true
         cover.isHidden = false; hostView?.bringSubviewToFront(cover)
@@ -105,6 +127,7 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     private func reveal() {
         guard lifecycle.canReveal(unlocked: unlocked) else { return }
         cover?.isHidden = true
+        privacyVeil?.isHidden = true
         webView?.accessibilityElementsHidden = false
         webView?.evaluateJavaScript("window.dispatchEvent(new Event('mesames-active'))", completionHandler: nil)
     }
@@ -125,8 +148,8 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         authenticate(reason: "Desbloqueie seu espaço financeiro.") { [weak self] success in
             guard let self = self else { return }
             self.unlocked = success
-            if success { self.coverMessage.text = "Seu espaço financeiro está protegido."; self.reveal() }
-            else { self.coverMessage.text = "Toque em Desbloquear para tentar novamente. Você também pode usar o código do iPhone."; self.conceal() }
+            if success { self.coverMessage.text = "Seu espaço, só seu."; self.reveal() }
+            else { self.coverMessage.text = "Tente novamente ou use o código do iPhone."; self.conceal() }
         }
     }
     private var ownerHash: String {
@@ -142,22 +165,24 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
         case .denied: permission = "denied"
         default: permission = "notDetermined"
         }
-        return ["version": "1.4.1", "lockEnabled": settings.lockEnabled, "unlocked": unlocked,
+        return ["version": "1.4.2", "lockEnabled": settings.lockEnabled, "unlocked": unlocked,
                 "biometry": context.biometryType == .faceID ? "faceID" : context.biometryType == .touchID ? "touchID" : "passcode",
                 "permission": permission, "remindersEnabled": settings.remindersEnabled,
-                "pendingPage": unlocked ? (queuedPage ?? "") : ""]
+                "reminderKinds": Array(DevicePolicy.destinations.keys), "scheduleError": scheduleError ?? "", "pendingPage": unlocked ? (queuedPage ?? "") : ""]
     }
     private func removeReminders() async {
         let pending = await notifications.pendingNotificationRequests()
         notifications.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix("ma.") })
         let delivered = await notifications.deliveredNotifications()
         notifications.removeDeliveredNotifications(withIdentifiers: delivered.map { $0.request.identifier }.filter { $0.hasPrefix("ma.") })
+        scheduleError = nil
     }
     private func updateReminders(_ jobs: [DeviceReminder], owner: String, revision: Int) async {
         guard revision == scheduleRevision, settings.ownerId == owner else { return }
         let authorization = await notifications.notificationSettings()
         guard settings.remindersEnabled, [.authorized, .provisional, .ephemeral].contains(authorization.authorizationStatus) else { await removeReminders(); return }
         let prefix = "ma.\(ownerHash)."
+        scheduleError = nil
         let existing = await notifications.pendingNotificationRequests()
         let wanted = Set(jobs.map { prefix + $0.id })
         notifications.removePendingNotificationRequests(withIdentifiers: existing.map(\.identifier).filter { $0.hasPrefix("ma.") && !wanted.contains($0) })
@@ -169,7 +194,8 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
             content.threadIdentifier = "mesames-reminders"
             content.userInfo = ["page": job.page, "ownerHash": ownerHash]
             let request = UNNotificationRequest(identifier: identifier, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: job.components, repeats: false))
-            try? await notifications.add(request)
+            do { try await notifications.add(request) }
+            catch { scheduleError = "Alguns lembretes não puderam ser programados. Abra o app novamente para tentar." }
         }
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage,
@@ -205,7 +231,8 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
                 case "setReminders":
                     guard let enabled = body["enabled"] as? Bool, settings.ownerId != nil else { replyHandler(nil, "Entre na sua conta para configurar lembretes."); return }
                     if enabled { _ = try await notifications.requestAuthorization(options: [.alert, .sound]) }
-                    var next = settings; next.remindersEnabled = enabled; try save(next)
+                    let permission = await notifications.notificationSettings().authorizationStatus
+                    var next = settings; next.remindersEnabled = enabled && [.authorized, .provisional, .ephemeral].contains(permission); try save(next)
                     if !enabled { scheduleRevision += 1; await scheduleTask?.value; await removeReminders() }
                 case "syncReminders":
                     guard let owner = body["ownerId"] as? String, settings.ownerId == owner else { replyHandler(nil, "Conta não autorizada."); return }
@@ -214,12 +241,6 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
                     let jobs = DevicePolicy.reminders(body["jobs"]); let previous = scheduleTask
                     let task = Task { await previous?.value; await self.updateReminders(jobs, owner: owner, revision: revision) }
                     scheduleTask = task; await task.value
-                case "testReminder":
-                    let permission = await notifications.notificationSettings().authorizationStatus
-                    guard settings.ownerId != nil, settings.remindersEnabled, [.authorized, .provisional, .ephemeral].contains(permission) else { replyHandler(nil, "Ative os lembretes e permita as notificações nos Ajustes."); return }
-                    let content = UNMutableNotificationContent(); content.title = "Mês a mês"; content.body = "Os lembretes deste iPhone estão prontos."; content.sound = .default
-                    content.userInfo = ["page": "Movimentações", "ownerHash": ownerHash]
-                    try await notifications.add(UNNotificationRequest(identifier: "ma.\(ownerHash).test", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)))
                 case "ackNavigation": if body["page"] as? String == queuedPage { queuedPage = nil }
                 case "openSettings":
                     if let url = URL(string: UIApplication.openSettingsURLString) { _ = await UIApplication.shared.open(url) }
@@ -232,7 +253,7 @@ final class DeviceExperience: NSObject, WKScriptMessageHandlerWithReply, UNUserN
     func handleNotification(_ response: UNNotificationResponse) {
         let info = response.notification.request.content.userInfo
         guard settings.ownerId != nil, info["ownerHash"] as? String == ownerHash,
-              let page = info["page"] as? String, ["Cartões", "Movimentações", "Metas"].contains(page) else { return }
+              let page = info["page"] as? String, DevicePolicy.destinations.values.contains(page) else { return }
         queuedPage = page; if unlocked { reveal() }
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {

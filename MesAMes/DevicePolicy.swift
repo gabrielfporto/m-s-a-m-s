@@ -20,6 +20,7 @@ struct DeviceUnlockLifecycle {
 }
 
 enum DevicePolicy {
+    static let destinations = ["bills": "Cartões", "payments": "Movimentações", "goals": "Metas", "income": "Movimentações", "closing": "Cartões", "weekly": "Relatórios", "planning": "Planejamento"]
     static let host = "mes-a-mes-financas.rosycream3.chatgpt.site"
     static func acceptsOrigin(scheme: String, host: String, port: Int, mainFrame: Bool) -> Bool {
         mainFrame && scheme == "https" && host.lowercased() == self.host && (port == 0 || port == 443)
@@ -33,7 +34,7 @@ enum DevicePolicy {
             guard let id = row["id"] as? String, let kind = row["kind"] as? String,
                   let date = row["date"] as? String, let hour = row["hour"] as? Int,
                   let page = row["page"] as? String,
-                  ["bills": "Cartões", "payments": "Movimentações", "goals": "Metas"][kind] == page,
+                  destinations[kind] == page,
                   (7...21).contains(hour), id == "ma-\(kind)-\(date)", !seen.contains(id) else { return nil }
             let parts = date.split(separator: "-").compactMap { Int($0) }
             guard date.count == 10, parts.count == 3 else { return nil }
@@ -54,6 +55,6 @@ struct DeviceReminder {
     let kind: String
     let page: String
     let components: DateComponents
-    var title: String { ["bills": "Fatura a vencer", "payments": "Pagamento previsto", "goals": "Sua meta está chegando"][kind]! }
-    var body: String { ["bills": "Confira suas próximas faturas no Mês a mês.", "payments": "Confira os pagamentos previstos no Mês a mês.", "goals": "Confira o prazo e o progresso das suas metas no Mês a mês."][kind]! }
+    var title: String { ["bills": "Fatura a vencer", "payments": "Pagamento previsto", "goals": "Sua meta está chegando", "income": "Receita prevista", "closing": "Fechamento do cartão", "weekly": "Seu momento da semana", "planning": "Um novo mês pela frente"][kind]! }
+    var body: String { ["bills": "Confira suas próximas faturas no Mês a mês.", "payments": "Confira os pagamentos previstos no Mês a mês.", "goals": "Confira o prazo e o progresso das suas metas no Mês a mês.", "income": "Confira as entradas previstas no Mês a mês.", "closing": "Confira os próximos fechamentos no Mês a mês.", "weekly": "Reserve um momento para revisar seu mês.", "planning": "Que tal preparar o planejamento do próximo mês?"][kind]! }
 }

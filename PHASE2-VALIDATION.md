@@ -1,4 +1,4 @@
-# Mês a mês — fase 2 / iOS 1.4.0 (build 5)
+# Mês a mês — fase 2 / iOS 1.4.2 (build 7)
 
 ## Implementado
 
@@ -25,10 +25,20 @@
 2. Em Perfil → Privacidade e lembretes, ativar o desbloqueio. Cancelar uma tentativa, tentar novamente e usar também o código do aparelho. Desativar deve pedir confirmação.
 3. Ir para a tela inicial e abrir o seletor de apps: os saldos não devem aparecer. Retornar deve pedir desbloqueio. Repetir bloqueando a tela e fechando o app por completo.
 4. Ocultar valores, trocar entre todas as abas e reabrir o app. Conferir também a consulta em modo avião. Desocultar deve restaurar os números.
-5. Ativar notificações e usar “Testar notificação”. Sair do app e aguardar o aviso. Tocá-lo deve respeitar o desbloqueio e abrir Movimentações.
+5. Ativar um lembrete real para uma data futura e conferir a entrega no horário escolhido. Tocá-lo deve respeitar o desbloqueio e abrir a aba correspondente. O botão de teste foi retirado após a validação anterior.
 6. Negar a permissão, conferir a indicação nos controles e usar Abrir Ajustes. Ativar somente os tipos desejados e mudar horário/antecedência.
 7. Sincronizar uma fatura paga e conferir que seu lembrete pendente é retirado. Sair da conta/trocar de conta deve cancelar os avisos anteriores.
 8. Nas abas e formulários: conferir teclado, rolagem, menus, voltar à posição anterior e a preferência de movimento reduzido do iOS.
 9. Em uma conta nova, seguir a conexão bancária ou o registro manual, planejamento e criação de meta. O progresso deve atualizar sem criar lançamentos de demonstração.
 
 A implementação e a compilação não encerram a fase 2: o aceite dos recursos do sistema depende destes testes no aparelho.
+
+## Refinamentos da versão 1.4.2
+
+- Central de Notificações, Central de Controle e avisos do sistema preservam a sessão desbloqueada. Enquanto a cena está inativa, somente um véu de privacidade é aplicado; a tela de desbloqueio aparece depois de uma saída real do app ou na abertura inicial.
+- Tela protegida com marca, cores adaptadas ao tema, texto curto e ação pequena sem preenchimento. No seletor de apps aparecem apenas a marca e o nome.
+- Novos lembretes opcionais: receitas previstas, fechamento dos cartões, revisão semanal (dia configurável) e planejamento do próximo mês. Todos começam desligados e mantêm conteúdo genérico.
+- Reprogramação ao retornar ao app/alterar permissões. Falhas na programação ficam visíveis em Privacidade e lembretes.
+- Alterações de preferências podem reutilizar a última leitura autenticada da mesma sessão durante uma perda de conexão; não usam uma conta diferente nem uma cópia offline sem leitura autenticada nesta sessão.
+- Validar fisicamente: baixar e fechar as centrais sem pedir Face ID; sair e voltar solicitando o desbloqueio; cancelar sem entrar em repetição; conferir o visual claro/escuro e os novos tipos de aviso.
+- Estas alterações nativas exigem instalar o IPA 1.4.2; publicar o site não atualiza o executável instalado.

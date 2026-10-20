@@ -47,3 +47,18 @@ cancelled.resignedActive(); cancelled.becameActive()
 check(!cancelled.canReveal(unlocked: false), "failed authentication keeps the cover")
 check(!cancelled.consumeAutomaticAttempt(), "cancel must leave an explicit retry button, not an automatic loop")
 print("Face ID scene ordering, successful unlock, cancellation and background regression checks passed.")
+
+var temporary = DeviceUnlockLifecycle()
+temporary.becameActive(); _ = temporary.consumeAutomaticAttempt()
+let temporaryEpoch = temporary.epoch
+temporary.resignedActive(); temporary.becameActive()
+check(temporary.epoch == temporaryEpoch, "Notification Center must not end the unlocked session")
+check(temporary.canReveal(unlocked: true), "temporary overlays return directly to the app")
+check(!temporary.consumeAutomaticAttempt(), "temporary overlays do not request Face ID again")
+for (kind, page) in DevicePolicy.destinations {
+    let row: [String: Any] = ["id":"ma-\(kind)-2026-10-20","kind":kind,"date":"2026-10-20","hour":9,"page":page]
+    let reminders = DevicePolicy.reminders([row], now: now, calendar: calendar)
+    check(reminders.count == 1, "every configured kind has a native destination")
+    check(!reminders[0].body.contains("R$"), "all notification kinds keep amounts private")
+}
+print("Temporary overlays preserve unlock; expanded reminder kinds are validated.")
